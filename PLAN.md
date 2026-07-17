@@ -115,6 +115,7 @@ multi-tenant-cluster-aks/
 ### Phase 4 — Storage capability
 - StorageClasses: default (Premium SSD v2 or managed-premium), high-IOPS (PremiumV2 with provisioned IOPS). `volumeBindingMode: WaitForFirstConsumer`, `allowVolumeExpansion: true`.
 - Acceptance: PVC binds; stateful pod on database node mounts disk.
+- **Status: config verified, PVC binds, pod mount blocked by PremiumV2's zonal requirement — see §7.** Both StorageClasses render/dry-run clean and are ArgoCD-synced healthy. Live-tested: PVC against `managed-premium-v2` reaches `Bound`, but the consuming pod fails `AttachVolume` with `"Managed disks with 'PremiumV2_LRS' storage account type can be used only with Virtual Machines in an Availability Zone"` — confirmed via a control test that this is specific to PremiumV2 (a non-zonal `Premium_LRS` PVC bound, mounted, and was writable end-to-end on the same node). Neither the system pool nor NAP's `NodePool`/`AKSNodeClass` objects pin `zones`. Combined with Phase 3's finding that `database`-class nodes can't provision at all right now, the full acceptance test (stateful pod *on a database node*) can't run yet regardless.
 
 ### Phase 5 — Network capability
 - Istio ambient via Helm (base, istiod, cni, ztunnel), Gateway API CRDs, shared ingress `Gateway` (namespace `istio-ingress`) → Azure Standard LB public IP.
@@ -175,7 +176,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 
 - ~~**NAP in azurerm**: `node_provisioning_profile` support landed via API 2025-05-01; verify pinned provider version, else use `azapi` (known-good pattern).~~ **Resolved in Phase 1**: confirmed via provider schema inspection that `node_provisioning_profile` is natively supported on the pinned `azurerm ~> 4.0` (installed 4.81.0) — no `azapi` fallback needed. NAP also requires Azure CNI Overlay + Cilium dataplane (`network_plugin_mode = "overlay"`, `network_data_plane = "cilium"`), now set in `infra/modules/aks`.
 - **Istio ambient on AKS**: supported with self-managed install + Azure CNI; AKS managed add-on excluded (no ambient). Keep NSG port 15008 open inter-node.
-- **PremiumV2 disks**: zone/region constraints — confirm availability in the chosen region before making it the high-IOPS class.
+- ~~**PremiumV2 disks**: zone/region constraints — confirm availability in the chosen region before making it the high-IOPS class.~~ **Confirmed in Phase 4**: the SKU itself is unrestricted for this subscription in `canadacentral` (unlike the compute VM families in the item below), but Azure requires PremiumV2_LRS disks to attach only to VMs in an Availability Zone — confirmed live via a real `AttachVolume` failure. Both `managed-premium-v2` (default) and `managed-premium-v2-iops` use PremiumV2_LRS per PLAN.md's own design, so this affects the default class too, not just high-IOPS. Neither the system pool nor NAP's NodePool/AKSNodeClass objects currently pin `zones` — needs zone-aware node pools before PremiumV2 is actually usable, independent of the Phase 3 SKU-availability blocker below.
 - **NAP + custom taints**: verify NAP honors startup taints per NodePool for database/gpu isolation as Karpenter does on EKS.
 - **AKS overlay service CIDR**: AKS's default `service_cidr` (`10.0.0.0/16`) collides with any VNet also using `10.0.0.0/16`. `infra/modules/aks` now sets `service_cidr = "172.16.0.0/16"` / `dns_service_ip = "172.16.0.10"` explicitly — keep this in mind if the VNet address space ever changes.
 - **Cost**: NAP consolidation should mirror Karpenter behavior; keep system pool minimal (2 × B/D-series).
@@ -190,7 +191,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 - [x] Phase 1: `terraform apply` → cluster reachable
 - [x] Phase 2: ArgoCD app-of-apps healthy
 - [ ] Phase 3: workload-class node provisioning works — config verified (NodePool/AKSNodeClass correct, ArgoCD-synced, RBAC fixed); live scale-test blocked by subscription SKU restrictions, see §7
-- [ ] Phase 4: PVC on both storage classes
+- [ ] Phase 4: PVC on both storage classes — config verified, PVC binds; pod mount blocked by PremiumV2's zonal requirement (unzoned node pools), see §7
 - [ ] Phase 5: public URL + TLS via shared gateway
 - [ ] Phase 6: ESO secret vending + Kyverno enforcement
 - [ ] Phase 7: team-a & team-b demos live
