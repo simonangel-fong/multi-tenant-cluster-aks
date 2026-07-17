@@ -41,3 +41,14 @@ module "identity" {
     }
   }
 }
+
+module "keyvault" {
+  source = "./modules/keyvault"
+
+  name_prefix         = local.name_prefix
+  location            = module.network.location
+  resource_group_name = module.network.resource_group_name
+  tags                = local.common_tags
+
+  secrets_user_principal_ids = [module.identity.principal_ids["eso"]]
+}

@@ -30,3 +30,8 @@ output "identity_client_ids" {
   description = "Map of logical identity name => client ID, for each ServiceAccount's azure.workload.identity/client-id annotation."
   value       = module.identity.client_ids
 }
+
+output "key_vault_uri" {
+  description = "URI of the platform Key Vault, consumed by ArgoCD's ClusterSecretStore manifest for ESO."
+  value       = module.keyvault.key_vault_uri
+}
