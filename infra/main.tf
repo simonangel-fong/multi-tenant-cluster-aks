@@ -52,3 +52,39 @@ module "keyvault" {
 
   secrets_user_principal_ids = [module.identity.principal_ids["eso"]]
 }
+
+# Phase 2 (PLAN.md §4): the one Helm release Terraform is allowed to manage —
+# ArgoCD has to exist before it can take over everything else above the API
+# server. app-of-apps.yaml stays a manual `kubectl apply` (see CLAUDE.md
+# Common commands): pointing the cluster at this git repo is a deliberate,
+# one-time trust decision, not something to automate away.
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  version          = "10.1.4"
+  namespace        = "argocd"
+  create_namespace = true
+
+  # The system node pool is tainted CriticalAddonsOnly=true:NoSchedule (see
+  # infra/modules/aks) since tenant/platform capacity is meant to come from
+  # NAP, not this pool. NAP NodePools don't exist until Phase 3, and ArgoCD
+  # is platform bootstrap, not tenant capacity — so it tolerates the taint
+  # and runs on the system pool like any other critical add-on.
+  values = [
+    yamlencode({
+      global = {
+        tolerations = [
+          {
+            key      = "CriticalAddonsOnly"
+            operator = "Equal"
+            value    = "true"
+            effect   = "NoSchedule"
+          }
+        ]
+      }
+    })
+  ]
+
+  depends_on = [module.aks]
+}
