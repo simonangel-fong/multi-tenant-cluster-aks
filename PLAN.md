@@ -172,10 +172,11 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 
 ## 7. Risks & Open Items
 
-- **NAP in azurerm**: `node_provisioning_profile` support landed via API 2025-05-01; verify pinned provider version, else use `azapi` (known-good pattern).
+- ~~**NAP in azurerm**: `node_provisioning_profile` support landed via API 2025-05-01; verify pinned provider version, else use `azapi` (known-good pattern).~~ **Resolved in Phase 1**: confirmed via provider schema inspection that `node_provisioning_profile` is natively supported on the pinned `azurerm ~> 4.0` (installed 4.81.0) — no `azapi` fallback needed. NAP also requires Azure CNI Overlay + Cilium dataplane (`network_plugin_mode = "overlay"`, `network_data_plane = "cilium"`), now set in `infra/modules/aks`.
 - **Istio ambient on AKS**: supported with self-managed install + Azure CNI; AKS managed add-on excluded (no ambient). Keep NSG port 15008 open inter-node.
 - **PremiumV2 disks**: zone/region constraints — confirm availability in the chosen region before making it the high-IOPS class.
 - **NAP + custom taints**: verify NAP honors startup taints per NodePool for database/gpu isolation as Karpenter does on EKS.
+- **AKS overlay service CIDR**: AKS's default `service_cidr` (`10.0.0.0/16`) collides with any VNet also using `10.0.0.0/16`. `infra/modules/aks` now sets `service_cidr = "172.16.0.0/16"` / `dns_service_ip = "172.16.0.10"` explicitly — keep this in mind if the VNet address space ever changes.
 - **Cost**: NAP consolidation should mirror Karpenter behavior; keep system pool minimal (2 × B/D-series).
 
 ---
@@ -183,7 +184,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 ## 8. Milestone Checklist
 
 - [x] Phase 0: repo scaffolding + TF backend
-- [ ] Phase 1: `terraform apply` → cluster reachable
+- [x] Phase 1: `terraform apply` → cluster reachable
 - [ ] Phase 2: ArgoCD app-of-apps healthy
 - [ ] Phase 3: workload-class node provisioning works
 - [ ] Phase 4: PVC on both storage classes
