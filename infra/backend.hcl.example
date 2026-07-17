@@ -1,0 +1,15 @@
+# Copy to backend.hcl (gitignored) and fill in real values:
+#   cp backend.hcl.example backend.hcl
+#
+# Same S3 bucket used for the sibling AWS/EKS project and other cloud
+# projects — only the key prefix changes per project/environment.
+
+bucket       = "REPLACE_ME"                                # shared state bucket name
+key          = "multi-tenant-aks/dev/terraform.tfstate"     # project/env-scoped path within the bucket
+region       = "REPLACE_ME"                                # bucket's AWS region, e.g. ca-central-1
+encrypt      = true
+use_lockfile = true                                            # S3 native locking (Terraform >= 1.10), no DynamoDB needed
+
+# Uncomment if the bucket lives in a different AWS account/profile than
+# your default credentials:
+# profile = "REPLACE_ME"
