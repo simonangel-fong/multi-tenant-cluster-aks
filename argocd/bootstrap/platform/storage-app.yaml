@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: storage
+  namespace: argocd
+  annotations:
+    # CRDs/Gateway API -> Istio -> cert-manager/ESO/Kyverno -> external-dns
+    # -> NodePools/StorageClasses -> tenants (see CLAUDE.md). Same wave as
+    # compute — StorageClasses and NodePools are listed together.
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/simonangel-fong/multi-tenant-cluster-aks.git
+    targetRevision: master
+    path: argocd/bootstrap/platform/storage
+  destination:
+    server: https://kubernetes.default.svc
+    # Inert: StorageClass is cluster-scoped, not namespaced. Set only because
+    # destination.namespace is required by the Application spec.
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
