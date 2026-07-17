@@ -110,6 +110,7 @@ multi-tenant-cluster-aks/
 ### Phase 3 — Compute capability
 - NAP `AKSNodeClass` + `NodePool` per workload class: `general` (D-series), `database` (E-series, taint), `gpu` (N-series, taint) — same labels/taints contract as the EKS repo so tenant manifests port unchanged.
 - Acceptance: pod with `workload-class: database` selector triggers a new E-series node in ~1–2 min.
+- **Status: config verified, live scale-test blocked by subscription — see §7.** All three `NodePool`/`AKSNodeClass` pairs are correctly configured (validated against AKS's own auto-created defaults, server-side dry-run clean, synced healthy by ArgoCD) and the BYO-VNet RBAC gap that was blocking NAP entirely is fixed. But this Azure subscription can't actually provision the acceptance test on `canadacentral`: D, E, B, and F family VMs are all `NotAvailableForSubscription`, and the one family that is available (`DCSv3`, confidential computing — what the system pool itself uses) still fails via NAP with `NoCompatibleInstanceTypes`, most likely because `AKSNodeClass`'s standard `Ubuntu2404` image isn't confidential-computing-compatible (a Karpenter-side image/capability mismatch, separate from the subscription restriction). No family found so far is both subscription-available and Karpenter-provisionable in this region.
 
 ### Phase 4 — Storage capability
 - StorageClasses: default (Premium SSD v2 or managed-premium), high-IOPS (PremiumV2 with provisioned IOPS). `volumeBindingMode: WaitForFirstConsumer`, `allowVolumeExpansion: true`.
@@ -179,6 +180,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 - **AKS overlay service CIDR**: AKS's default `service_cidr` (`10.0.0.0/16`) collides with any VNet also using `10.0.0.0/16`. `infra/modules/aks` now sets `service_cidr = "172.16.0.0/16"` / `dns_service_ip = "172.16.0.10"` explicitly — keep this in mind if the VNet address space ever changes.
 - **Cost**: NAP consolidation should mirror Karpenter behavior; keep system pool minimal (2 × B/D-series).
 - **BYO-VNet AKS identity grant**: Azure only auto-grants the cluster's own identity network access for AKS-*managed* VNets — on a bring-your-own VNet (ours), that grant is the deployer's job and was missed in Phase 1, surfacing in Phase 3 as NAP's `AKSNodeClass` objects stuck `SubnetsReady=False` (`AuthorizationFailed` on `subnets/read`). Fixed via `azurerm_role_assignment.subnet_network_contributor` in `infra/modules/aks`, scoped to the subnet only. Built-in `Network Contributor` is Microsoft's documented floor for this scenario but is broader than NAP strictly needs (also grants subnet delete/NSG-association/route-table changes) — and since it's the one shared subnet for every tenant, a compromised control-plane identity could affect all tenants' networking, not just its own. Acceptable for a single dev cluster; before prod, replace with a custom role limited to `Microsoft.Network/virtualNetworks/subnets/read` + `.../subnets/join/action`.
+- **Free-tier subscription SKU restrictions block live NAP testing**: confirmed via `az vm list-skus --location canadacentral ... --query restrictions` that D, E, B, and F family VMs are all `NotAvailableForSubscription` on this subscription in `canadacentral` — unrelated to the `Total Regional vCPUs` quota (also low, at 4, and separately confirmed as a contributing factor before this deeper restriction was found). The only subscription-available family, `DCSv3` (confidential computing — what the system pool uses), still fails through NAP with `NoCompatibleInstanceTypes`, most likely because `AKSNodeClass`'s standard `Ubuntu2404` image isn't confidential-computing-compatible. Net effect: no VM family found so far is both subscription-available and Karpenter-provisionable in this region, so Phase 3's live acceptance test (a `workload-class: database` pod triggering a new node) can't be executed here. Fix requires either upgrading off the free tier or testing in a different region/subscription with broader SKU access — not a code or config defect in this repo.
 
 ---
 
@@ -187,7 +189,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 - [x] Phase 0: repo scaffolding + TF backend
 - [x] Phase 1: `terraform apply` → cluster reachable
 - [x] Phase 2: ArgoCD app-of-apps healthy
-- [ ] Phase 3: workload-class node provisioning works
+- [ ] Phase 3: workload-class node provisioning works — config verified (NodePool/AKSNodeClass correct, ArgoCD-synced, RBAC fixed); live scale-test blocked by subscription SKU restrictions, see §7
 - [ ] Phase 4: PVC on both storage classes
 - [ ] Phase 5: public URL + TLS via shared gateway
 - [ ] Phase 6: ESO secret vending + Kyverno enforcement
