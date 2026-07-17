@@ -20,3 +20,24 @@ module "aks" {
   # subnet ID output alone doesn't guarantee that ordering.
   depends_on = [module.network]
 }
+
+module "identity" {
+  source = "./modules/identity"
+
+  name_prefix         = local.name_prefix
+  location            = module.network.location
+  resource_group_name = module.network.resource_group_name
+  oidc_issuer_url     = module.aks.oidc_issuer_url
+  tags                = local.common_tags
+
+  # ESO is the only workload that needs its own Azure identity today — it's
+  # the sole bootstrap secret (Cloudflare token, etc. are vended through it
+  # from Key Vault). cert-manager/external-dns consume k8s Secrets from ESO
+  # rather than talking to Azure directly. See PLAN.md Phase 6.
+  identities = {
+    eso = {
+      namespace       = "external-secrets"
+      service_account = "external-secrets"
+    }
+  }
+}

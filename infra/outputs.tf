@@ -25,3 +25,8 @@ output "oidc_issuer_url" {
   description = "OIDC issuer URL, consumed by the identity module for Workload Identity federated credentials."
   value       = module.aks.oidc_issuer_url
 }
+
+output "identity_client_ids" {
+  description = "Map of logical identity name => client ID, for each ServiceAccount's azure.workload.identity/client-id annotation."
+  value       = module.identity.client_ids
+}
