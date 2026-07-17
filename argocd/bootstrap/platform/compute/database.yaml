@@ -1,0 +1,54 @@
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: database
+spec:
+  imageFamily: Ubuntu2404
+  osDiskSizeGB: 128
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: database
+spec:
+  template:
+    metadata:
+      labels:
+        workload-class: database
+        kubernetes.azure.com/ebpf-dataplane: cilium
+    spec:
+      expireAfter: Never
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: database
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.azure.com/sku-family
+          operator: In
+          values: ["E"]
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+      # Reserved for stateful workloads: only pods that explicitly tolerate
+      # this taint (via the workload-class: database nodeSelector contract,
+      # see CLAUDE.md) land here.
+      taints:
+        - key: workload-class
+          value: database
+          effect: NoSchedule
+  limits:
+    cpu: "16"
+    memory: 128Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m

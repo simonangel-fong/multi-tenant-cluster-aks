@@ -1,0 +1,50 @@
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: general
+spec:
+  imageFamily: Ubuntu2404
+  osDiskSizeGB: 128
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: general
+spec:
+  template:
+    metadata:
+      labels:
+        workload-class: general
+        kubernetes.azure.com/ebpf-dataplane: cilium
+    spec:
+      expireAfter: Never
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: general
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.azure.com/sku-family
+          operator: In
+          values: ["D"]
+      # Required for the cilium dataplane: without it, pods can schedule on a
+      # node before the Cilium agent is ready, breaking pod networking. Mirrors
+      # the startup taint on AKS's own auto-created NodePools.
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+  limits:
+    cpu: "32"
+    memory: 128Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m

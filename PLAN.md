@@ -178,6 +178,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 - **NAP + custom taints**: verify NAP honors startup taints per NodePool for database/gpu isolation as Karpenter does on EKS.
 - **AKS overlay service CIDR**: AKS's default `service_cidr` (`10.0.0.0/16`) collides with any VNet also using `10.0.0.0/16`. `infra/modules/aks` now sets `service_cidr = "172.16.0.0/16"` / `dns_service_ip = "172.16.0.10"` explicitly — keep this in mind if the VNet address space ever changes.
 - **Cost**: NAP consolidation should mirror Karpenter behavior; keep system pool minimal (2 × B/D-series).
+- **BYO-VNet AKS identity grant**: Azure only auto-grants the cluster's own identity network access for AKS-*managed* VNets — on a bring-your-own VNet (ours), that grant is the deployer's job and was missed in Phase 1, surfacing in Phase 3 as NAP's `AKSNodeClass` objects stuck `SubnetsReady=False` (`AuthorizationFailed` on `subnets/read`). Fixed via `azurerm_role_assignment.subnet_network_contributor` in `infra/modules/aks`, scoped to the subnet only. Built-in `Network Contributor` is Microsoft's documented floor for this scenario but is broader than NAP strictly needs (also grants subnet delete/NSG-association/route-table changes) — and since it's the one shared subnet for every tenant, a compromised control-plane identity could affect all tenants' networking, not just its own. Acceptable for a single dev cluster; before prod, replace with a custom role limited to `Microsoft.Network/virtualNetworks/subnets/read` + `.../subnets/join/action`.
 
 ---
 

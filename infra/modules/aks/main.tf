@@ -44,3 +44,20 @@ resource "azurerm_kubernetes_cluster" "this" {
 
   tags = var.tags
 }
+
+# Bring-your-own-VNet AKS clusters don't get their identity auto-granted
+# network access the way AKS-managed VNets do — that's the deployer's job.
+# The initial system node pool works anyway (the AKS resource provider
+# provisions it internally), but Node Auto Provisioning's Karpenter
+# controller runs as an in-cluster workload and calls Azure APIs directly
+# using the cluster's own identity, which needs this to read/join the
+# subnet. Network Contributor (rather than a narrower custom role limited
+# to subnets/read + subnets/join/action) is Microsoft's own documented
+# minimum for this scenario; scoping to the subnet, not the VNet or
+# resource group, keeps the blast radius to just the one subnet AKS nodes
+# actually live in.
+resource "azurerm_role_assignment" "subnet_network_contributor" {
+  scope                = var.subnet_id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_kubernetes_cluster.this.identity[0].principal_id
+}

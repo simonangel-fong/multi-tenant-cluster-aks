@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: compute
+  namespace: argocd
+  annotations:
+    # CRDs/Gateway API -> Istio -> cert-manager/ESO/Kyverno -> external-dns
+    # -> NodePools/StorageClasses -> tenants (see CLAUDE.md). Compute is the
+    # only platform capability that exists so far, so this wave number has
+    # no live ordering effect yet — it reflects where this sits once the
+    # earlier waves are populated in Phases 4-6.
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/simonangel-fong/multi-tenant-cluster-aks.git
+    targetRevision: master
+    path: argocd/bootstrap/platform/compute
+  destination:
+    server: https://kubernetes.default.svc
+    # Inert: NodePool/AKSNodeClass are cluster-scoped, not namespaced. Set
+    # only because destination.namespace is required by the Application
+    # spec, and matches the convention used elsewhere in this tree.
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
