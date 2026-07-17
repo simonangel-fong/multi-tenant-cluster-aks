@@ -1,0 +1,14 @@
+# Copy to dev.tfvars (gitignored — *.tfvars is excluded repo-wide) and fill
+# in real values:
+#   cp dev.tfvars.example dev.tfvars
+#
+# Per-environment variables. Additional envs get their own <env>.tfvars file
+# copied from this template — see PLAN.md §5 ("envs added via tfvars, not
+# copies").
+
+environment = "dev"
+location    = "REPLACE_ME" # Azure region, e.g. "canadacentral"
+
+tags = {
+  # owner = "platform-team"
+}

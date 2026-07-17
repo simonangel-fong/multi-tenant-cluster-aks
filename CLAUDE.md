@@ -34,15 +34,16 @@ docs/             tenant guides, platform runbooks, dev/design docs
 ## Common commands
 
 ```sh
-# One-time per machine/checkout: point at the shared S3 state bucket
+# One-time per machine/checkout: point at the shared S3 state bucket and set env vars
 cp infra/backend.hcl.example infra/backend.hcl   # then fill in bucket/region — gitignored, never commit
+cp infra/dev.tfvars.example infra/dev.tfvars     # then fill in location — gitignored, never commit
 
 # Terraform
 terraform -chdir=infra init -backend-config=backend.hcl
 terraform -chdir=infra fmt -recursive
 terraform -chdir=infra validate
-terraform -chdir=infra plan
-terraform -chdir=infra apply
+terraform -chdir=infra plan -var-file=dev.tfvars
+terraform -chdir=infra apply -var-file=dev.tfvars
 
 # Cluster access
 az aks get-credentials --resource-group mtc-aks-dev-rg --name mtc-aks-dev
