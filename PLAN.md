@@ -185,7 +185,7 @@ Suggested Claude Code workflow per phase: plan with the Plan agent → implement
 
 - [x] Phase 0: repo scaffolding + TF backend
 - [x] Phase 1: `terraform apply` → cluster reachable
-- [ ] Phase 2: ArgoCD app-of-apps healthy
+- [x] Phase 2: ArgoCD app-of-apps healthy
 - [ ] Phase 3: workload-class node provisioning works
 - [ ] Phase 4: PVC on both storage classes
 - [ ] Phase 5: public URL + TLS via shared gateway
